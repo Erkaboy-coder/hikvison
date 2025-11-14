@@ -8,32 +8,48 @@
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" integrity="sha512-jQ0ZP0jPaYJHzF3Y+fZ0YHbIzZyqL9pR5/djcGgA+FVwDKA+OgRoW9ppFzZnU+Lkz1P3DdC+JmGmlK1s4kF7PQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 
     <style>
         body {
-            background: linear-gradient(to right, #eef2f7, #f9fbff);
+            background: linear-gradient(135deg, #eef2f7 0%, #f9fbff 100%);
             font-family: 'Segoe UI', sans-serif;
             min-height: 100vh;
         }
-        .content-wrapper {
-            max-width: 1200px;
+
+        .container-custom {
+            max-width: 1400px;
             margin: 50px auto;
+            padding: 0 15px;
         }
+
         .card {
             border: none;
             border-radius: 1rem;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            box-shadow: 0 4px 25px rgba(0,0,0,0.1);
         }
+
+        .page-title {
+            text-align: center;
+            color: #0d6efd;
+            font-weight: 700;
+            margin-bottom: 2.5rem;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        }
+
+        /* Table */
         .table thead th {
             background-color: #0d6efd !important;
             color: #fff;
             text-align: center;
             font-weight: 600;
         }
+
         .table tbody tr:hover {
             background-color: #f1f5ff;
         }
+
+        /* Status badges */
         .status-badge {
             font-size: 1rem;
             padding: 0.5rem 1.2rem;
@@ -43,38 +59,44 @@
             align-items: center;
             gap: 0.5rem;
         }
+
         .status-in {
             background-color: #28a745;
+            color: #fff;
         }
+
         .status-out {
-            background-color: #6c757d;
+            background-color: #dc3545;
+            color: #fff;
         }
-        .input-group input {
-            border-radius: 0.5rem 0 0 0.5rem !important;
+
+        /* Form inputs */
+        .input-group input, .input-group button, .input-group .btn-reset {
+            border-radius: 0.5rem !important;
         }
+
         .input-group button, .input-group .btn-reset {
-            border-radius: 0 !important;
+            border-radius: 0.5rem !important;
         }
+
         .btn-reset {
-            border-radius: 0 0.5rem 0.5rem 0 !important;
+            border-radius: 0.5rem !important;
         }
+
         .alert {
             border-radius: 0.7rem;
         }
-        .page-title {
-            text-align: center;
-            color: #0d6efd;
-            font-weight: 700;
-            margin-bottom: 2.5rem;
-        }
+
         @media (max-width: 768px) {
             .card-body {
                 flex-direction: column !important;
                 gap: 1rem;
             }
+
             .input-group {
                 flex-direction: column !important;
             }
+
             .input-group button, .input-group .btn-reset {
                 border-radius: 0.5rem !important;
             }
@@ -82,47 +104,93 @@
     </style>
 </head>
 <body>
-<div class="content-wrapper">
+<div class="container-custom">
+
+    <!-- Page Title -->
     <h2 class="page-title"><i class="fa-solid fa-clock"></i> Haftalik kirish-chiqish hisobi</h2>
 
-    <!-- Search & Reset -->
+    <!-- Search & Filter Form -->
     <form method="get" class="mb-4">
-        <div class="input-group shadow-sm">
-            <input type="text" name="card_number" class="form-control form-control-lg"
-                   placeholder="🆔 ID raqamini kiriting..." value="{{ card_number|default:'' }}">
-            <button type="submit" class="btn btn-primary btn-lg">
-                <i class="fa-solid fa-magnifying-glass"></i> Ko‘rish
-            </button>
-            <a href="{% url 'weekly-activity' %}" class="btn btn-secondary btn-lg btn-reset">
-                <i class="fa-solid fa-arrows-rotate"></i> Tozalash
-            </a>
+        <div class="d-flex flex-wrap gap-3 shadow-sm p-4 rounded bg-white align-items-center">
+            <!-- ID Card -->
+            <div class="flex-grow-1" style="min-width: 200px;">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fa-solid fa-id-badge"></i></span>
+                    <input type="text" name="card_number" class="form-control form-control-lg"
+                           placeholder="🆔 ID raqamini kiriting..." value="{{ card_number|default:'' }}">
+                </div>
+            </div>
+
+            <!-- Date -->
+            <div class="flex-grow-1" style="min-width: 150px;">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fa-solid fa-calendar-days"></i></span>
+                    <input type="date" name="filter_date" class="form-control form-control-lg"
+                           value="{{ filter_date|default:'' }}">
+                </div>
+            </div>
+
+            <!-- Start Time -->
+            <div class="flex-grow-1" style="min-width: 140px;">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fa-solid fa-clock"></i></span>
+                    <input type="time" name="start_time" class="form-control form-control-lg"
+                           value="{{ start_time|default:'' }}">
+                </div>
+            </div>
+
+            <!-- End Time -->
+            <div class="flex-grow-1" style="min-width: 140px;">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fa-solid fa-clock"></i></span>
+                    <input type="time" name="end_time" class="form-control form-control-lg"
+                           value="{{ end_time|default:'' }}">
+                </div>
+            </div>
+
+            <!-- Buttons -->
+            <div class="d-flex gap-2 flex-grow-1 flex-md-grow-0" style="min-width: 180px;">
+                <button type="submit" class="btn btn-primary btn-lg flex-grow-1">
+                    <i class="fa-solid fa-magnifying-glass"></i> Filtrlash
+                </button>
+                <a href="{% url 'weekly-activity' %}" class="btn btn-secondary btn-lg flex-grow-1">
+                    <i class="fa-solid fa-arrows-rotate"></i> Tozalash
+                </a>
+            </div>
         </div>
     </form>
 
-    <!-- Error Message -->
+    <!-- Error Alert -->
     {% if error %}
-        <div class="alert alert-danger shadow-sm text-center"><i class="fa-solid fa-triangle-exclamation"></i> {{ error }}</div>
+    <div class="alert alert-danger shadow-sm text-center">
+        <i class="fa-solid fa-triangle-exclamation"></i> {{ error }}
+    </div>
     {% endif %}
 
     {% if has_data %}
         {% if card_number %}
-        <!-- User Info -->
+        <!-- User Info Card -->
         <div class="card mb-4 w-100">
             <div class="card-body d-flex justify-content-between align-items-center flex-wrap">
                 <div>
                     <h6 class="text-secondary mb-1"><i class="fa-solid fa-id-badge"></i> ID raqami:</h6>
                     <h5 class="fw-bold text-dark">{{ card_number }}</h5>
                 </div>
-                <div>
-                    <span class="status-badge {% if status and status|slice:":2" == "🏢" %}status-in text-white{% else %}status-out text-white{% endif %}">
-                        {% if status and status|slice:":2" == "🏢" %}
-                            <i class="fa-solid fa-building"></i>
+
+                {% with last_log=logs|first %}
+                    <div>
+                        {% if last_log.direction == "in" %}
+                            <span class="status-badge status-in">
+                                <i class="fa-solid fa-building"></i> Bino ichida
+                            </span>
                         {% else %}
-                            <i class="fa-solid fa-door-closed"></i>
+                            <span class="status-badge status-out">
+                                <i class="fa-solid fa-door-closed"></i> Tashqarida
+                            </span>
                         {% endif %}
-                        {{ status }}
-                    </span>
-                </div>
+                    </div>
+                {% endwith %}
+
             </div>
         </div>
         {% endif %}
@@ -148,12 +216,10 @@
                             <td>{{ log.card_number }}</td>
                             <td class="text-start">{{ log.name }}</td>
                             <td>
-                                {% if log.event_type == "Door Unlocked" %}
-                                    <span class="badge bg-success"><i class="fa-solid fa-door-open"></i> Kirish</span>
-                                {% elif log.event_type == "Door Locked" %}
-                                    <span class="badge bg-danger"><i class="fa-solid fa-door-closed"></i> Chiqish</span>
+                                {% if log.direction == "in" %}
+                                    <span class="badge bg-success"><i class="fa-solid fa-building"></i> Binoga kirdi</span>
                                 {% else %}
-                                    <span class="badge bg-secondary"><i class="fa-solid fa-info"></i> {{ log.event_type }}</span>
+                                    <span class="badge bg-danger"><i class="fa-solid fa-door-closed"></i> Binodan chiqib ketdi</span>
                                 {% endif %}
                             </td>
                             <td>{{ log.direction|title }}</td>
@@ -208,7 +274,6 @@
         </nav>
         {% endif %}
     {% endif %}
-
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
