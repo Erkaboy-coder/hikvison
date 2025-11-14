@@ -9,6 +9,8 @@ from dateutil import parser
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from .models import EventLog
 from .serializers import EventLogSerializer
+import logging
+logger = logging.getLogger("hikvision")
 
 LIVE_IPS = ["10.234.0.9"]  # Faqat live terminal IPsi
 TZ = pytz.timezone("Asia/Tashkent")
@@ -89,24 +91,26 @@ class EventLogListAPIView(generics.ListCreateAPIView):
 
 # ---------------------- DoorEventAPIView ----------------------
 class DoorEventAPIView(APIView):
-    """
-    Hikvision POST API (Kirish va Chiqish)
-    - Faqat live terminal eventlarini qabul qiladi
-    - Eski yoki kelajakdagi eventlarni tashlaydi (>2 daqiqa)
-    - Bazaga yozadi faqat person_id va name mavjud bo‘lsa
-    """
 
     def post(self, request):
-        if request.META.get('REMOTE_ADDR') not in LIVE_IPS:
+        client_ip = request.META.get('REMOTE_ADDR')
+
+        logger.info(f"📥 NEW REQUEST: IP={client_ip}, DATA={request.POST.dict()}")
+
+        if client_ip not in LIVE_IPS:
+            logger.warning(f"❌ Ruxsat berilmagan IP urindi: {client_ip}")
             return Response({"message": "⚠️ Faqat live IP dan qabul qilinadi"}, status=status.HTTP_200_OK)
 
         event_log_str = request.POST.get('event_log')
         if not event_log_str:
+            logger.error("❌ event_log maydoni topilmadi")
             return Response({"message": "❌ event_log maydoni topilmadi"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             data = json.loads(event_log_str)
-        except json.JSONDecodeError:
+            logger.info(f"📦 JSON qabul qilindi: {data}")
+        except json.JSONDecodeError as e:
+            logger.exception("❌ JSON decode error")
             return Response({"message": "❌ JSON parse xatolik"}, status=status.HTTP_400_BAD_REQUEST)
 
         ace = data.get("AccessControllerEvent", {})
@@ -115,56 +119,68 @@ class DoorEventAPIView(APIView):
         status_value = ace.get("statusValue")
         date_time_str = data.get("dateTime")
 
-        # 🔹 DEBUG log
-        print(f"DEBUG: person_id={person_id}, name={name}, status_value={status_value}, type={type(status_value)}")
+        logger.info(f"🔍 Parsed fields: person_id={person_id}, name={name}, status_value={status_value}, date_time={date_time_str}")
 
-        # Agar event foydalanuvchi IDsi bo'lmasa, yozmaymiz
         if not person_id:
+            logger.warning("⚠️ person_id topilmadi, event DB ga yozilmaydi")
             return Response({"message": "⚠️ Bazaga yozilmadi, person_id mavjud emas"}, status=status.HTTP_200_OK)
 
-        # Hozirgi vaqt
         now = datetime.now(TZ)
 
-        # date_time ni aniqlash
-        if date_time_str:
-            try:
+        # TIME PARSE
+        try:
+            if date_time_str:
                 date_time = parser.isoparse(date_time_str)
                 if date_time.tzinfo is None:
                     date_time = TZ.localize(date_time)
                 date_time = date_time.astimezone(TZ)
-            except Exception as e:
-                print(f"WARNING: date_time parse xatolik: {e}")
+            else:
                 date_time = now
-        else:
+
+            logger.info(f"🕒 Event time parsed: {date_time}")
+
+        except Exception as e:
+            logger.exception("❌ date_time parse xatolik")
             date_time = now
 
-        # ⏳ Eski yoki kelajakdagi eventni cheklash (2 daqiqa)
-        if abs((now - date_time).total_seconds()) > 120:
+        # OLD or FUTURE EVENT
+        diff = abs((now - date_time).total_seconds())
+        if diff > 120:
+            logger.warning(f"⏳ Eski yoki kelajakdagi event tashlandi. Farq={diff} sec")
             return Response({"message": "⏳ Eski yoki kelajakdagi event e'tiborsiz qoldirildi"}, status=status.HTTP_200_OK)
 
-        # 🔹 status_value ni int ga o'tkazish va fallback
+        # STATUS
         try:
             status_value_int = int(status_value)
-        except Exception:
-            status_value_int = 1  # default Kirish
+            logger.info(f"status_value int ga o‘tdi: {status_value_int}")
+        except:
+            logger.error(f"status_value int ga o'tmadi: {status_value}")
+            status_value_int = 1
 
-        # Operatsiya va direction aniqlash
         if status_value_int == 0:
             operation = "Door Locked"
-            direction = "out"   # Chiqish
+            direction = "out"
         else:
             operation = "Door Unlocked"
-            direction = "in"    # Kirish
+            direction = "in"
 
-        # Bazaga yozish
-        EventLog.objects.create(
-            event_type=operation,
-            date_time=date_time,
-            card_number=person_id,
-            name=name,
-            direction=direction,
-            raw_data=data
-        )
+        logger.info(f"📌 Operation={operation}, Direction={direction}")
+
+        # DATABASE WRITE
+        try:
+            EventLog.objects.create(
+                event_type=operation,
+                date_time=date_time,
+                card_number=person_id,
+                name=name,
+                direction=direction,
+                raw_data=data
+            )
+            logger.info(f"💾 DB RECORD SAVED: {person_id} | {name} | {operation} | {direction}")
+
+        except Exception as e:
+            logger.exception("❌ DB yozishda xatolik")
+            return Response({"message": "❌ DB yozishda xatolik"}, status=500)
 
         return Response({
             "message": "✅ Event qabul qilindi va bazaga yozildi",
