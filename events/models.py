@@ -12,6 +12,7 @@ class EventLog(models.Model):
     name = models.CharField(max_length=200, blank=True, null=True)
     direction = models.CharField(max_length=5, choices=DIRECTION_CHOICES)
     raw_data = models.JSONField()
+    is_synced = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.name} ({self.get_direction_display()}) - {self.date_time}"

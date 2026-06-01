@@ -130,114 +130,12 @@ class EventLogListAPIView(generics.ListCreateAPIView):
 
 
 # ---------------------- DoorEventAPIView ----------------------
-# class DoorEventAPIView(APIView):
-
-#     def post(self, request):
-#         client_ip = request.META.get('REMOTE_ADDR')
-
-#         logger.info(f"📥 NEW REQUEST: IP={client_ip}, DATA={request.POST.dict()}")
-
-#         if client_ip not in LIVE_IPS:
-#             logger.warning(f"❌ Ruxsat berilmagan IP urindi: {client_ip}")
-#             return Response({"message": "⚠️ Faqat live IP dan qabul qilinadi"}, status=status.HTTP_200_OK)
-
-#         event_log_str = request.POST.get('event_log')
-#         if not event_log_str:
-#             logger.error("❌ event_log maydoni topilmadi")
-#             return Response({"message": "❌ event_log maydoni topilmadi"}, status=status.HTTP_400_BAD_REQUEST)
-
-#         try:
-#             data = json.loads(event_log_str)
-#             logger.info(f"📦 JSON qabul qilindi: {data}")
-#         except json.JSONDecodeError as e:
-#             logger.exception("❌ JSON decode error")
-#             return Response({"message": "❌ JSON parse xatolik"}, status=status.HTTP_400_BAD_REQUEST)
-
-#         ace = data.get("AccessControllerEvent", {})
-#         person_id = ace.get("employeeNoString") or ace.get("verifyNo") or ace.get("cardNo")
-#         name = ace.get("netUser") or ace.get("name") or "Noma'lum"
-#         status_value = ace.get("statusValue")
-#         date_time_str = data.get("dateTime")
-
-#         logger.info(f"🔍 Parsed fields: person_id={person_id}, name={name}, status_value={status_value}, date_time={date_time_str}")
-
-#         if not person_id:
-#             logger.warning("⚠️ person_id topilmadi, event DB ga yozilmaydi")
-#             return Response({"message": "⚠️ Bazaga yozilmadi, person_id mavjud emas"}, status=status.HTTP_200_OK)
-
-#         now = datetime.now(TZ)
-
-#         # TIME PARSE
-#         try:
-#             if date_time_str:
-#                 date_time = parser.isoparse(date_time_str)
-#                 if date_time.tzinfo is None:
-#                     date_time = TZ.localize(date_time)
-#                 date_time = date_time.astimezone(TZ)
-#             else:
-#                 date_time = now
-
-#             logger.info(f"🕒 Event time parsed: {date_time}")
-
-#         except Exception as e:
-#             logger.exception("❌ date_time parse xatolik")
-#             date_time = now
-
-#         # OLD or FUTURE EVENT
-#         diff = abs((now - date_time).total_seconds())
-#         if diff > 120:
-#             logger.warning(f"⏳ Eski yoki kelajakdagi event tashlandi. Farq={diff} sec")
-#             return Response({"message": "⏳ Eski yoki kelajakdagi event e'tiborsiz qoldirildi"}, status=status.HTTP_200_OK)
-
-#         # STATUS
-#         try:
-#             status_value_int = int(status_value)
-#             logger.info(f"status_value int ga o‘tdi: {status_value_int}")
-#         except:
-#             logger.error(f"status_value int ga o'tmadi: {status_value}")
-#             status_value_int = 1
-
-#         if status_value_int == 0:
-#             operation = "Door Locked"
-#             direction = "out"
-#         else:
-#             operation = "Door Unlocked"
-#             direction = "in"
-
-#         logger.info(f"📌 Operation={operation}, Direction={direction}")
-
-#         # DATABASE WRITE
-#         try:
-#             EventLog.objects.create(
-#                 event_type=operation,
-#                 date_time=date_time,
-#                 card_number=person_id,
-#                 name=name,
-#                 direction=direction,
-#                 raw_data=data
-#             )
-#             logger.info(f"💾 DB RECORD SAVED: {person_id} | {name} | {operation} | {direction}")
-
-#         except Exception as e:
-#             logger.exception("❌ DB yozishda xatolik")
-#             return Response({"message": "❌ DB yozishda xatolik"}, status=500)
-
-#         return Response({
-#             "message": "✅ Event qabul qilindi va bazaga yozildi",
-#             "person_id": person_id,
-#             "name": name,
-#             "operation": operation,
-#             "direction": "Kirish" if direction == "in" else "Chiqish",
-#             "date_time": date_time.isoformat()
-#         }, status=status.HTTP_200_OK)
-
-# version 2
 class DoorEventAPIView(APIView):
     """
     Hikvision live API (Kirish va Chiqish)
     - Faqat live terminal eventlarini qabul qiladi
     - Eski yoki kelajakdagi eventlarni tashlaydi (>2 daqiqa)
-    - Bazaga yozadi faqat person_id va name mavjud bo‘lsa
+    - Laravel ga yuboradi faqat person_id va name mavjud bo‘lsa
     - direction: 'in' -> Kirish, 'out' -> Chiqish
     """
 
@@ -271,10 +169,10 @@ class DoorEventAPIView(APIView):
 
         logger.info(f"🔍 Parsed fields: person_id={person_id}, name={name}, status_value={status_value}, date_time={date_time_str}")
 
-        # Faqat person_id va name mavjud bo‘lsa yozish
+        # Faqat person_id va name mavjud bo‘lsa yuborish
         if not person_id or not name:
-            logger.warning("⚠️ person_id yoki name topilmadi, event DB ga yozilmaydi")
-            return Response({"message": "⚠️ Bazaga yozilmadi, person_id yoki name mavjud emas"}, status=status.HTTP_200_OK)
+            logger.warning("⚠️ person_id yoki name topilmadi, event Laravelga yuborilmaydi")
+            return Response({"message": "⚠️ Yuborilmadi, person_id yoki name mavjud emas"}, status=status.HTTP_200_OK)
 
         # vaqtni parse qilish
         now = datetime.now(TZ)
@@ -317,23 +215,58 @@ class DoorEventAPIView(APIView):
 
         logger.info(f"📌 Operation={operation}, Direction={direction}")
 
-        # DB ga yozish
+        # Laravel ga yuborish
+        import os
+        import requests
+
+        laravel_url = os.getenv("LARAVEL_URL", "https://data.jdu.uz")
+        laravel_token = os.getenv("LARAVEL_TOKEN")
+        endpoint = f"{laravel_url}/api/event-logs"
+
+        payload = {
+            "event_type": operation,
+            "date_time": date_time.isoformat(),
+            "card_number": person_id,
+            "name": name,
+            "direction": direction,
+            "raw_data": data if isinstance(data, dict) else {"raw": str(data)}
+        }
+
+        headers = {
+            "Authorization": f"Bearer {laravel_token}",
+            "Content-Type": "application/json"
+        }
+
         try:
+            response = requests.post(endpoint, json=payload, headers=headers, timeout=10)
+            logger.info(f"📤 Sent to Laravel: HTTP {response.status_code} | {person_id} | {name}")
+            if response.status_code not in [200, 201]:
+                logger.error(f"❌ Laravel returned error: HTTP {response.status_code} - {response.text}")
+                EventLog.objects.create(
+                    event_type=operation,
+                    date_time=date_time,
+                    card_number=person_id,
+                    name=name,
+                    direction=direction,
+                    raw_data=data if isinstance(data, dict) else {"raw": str(data)},
+                    is_synced=False
+                )
+                return Response({"message": "❌ Laravelga yuborishda xatolik (mahalliy saqlandi)"}, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.exception(f"❌ Laravelga yuborishda xatolik: {e}")
             EventLog.objects.create(
                 event_type=operation,
                 date_time=date_time,
                 card_number=person_id,
                 name=name,
                 direction=direction,
-                raw_data=data
+                raw_data=data if isinstance(data, dict) else {"raw": str(data)},
+                is_synced=False
             )
-            logger.info(f"💾 DB RECORD SAVED: {person_id} | {name} | {operation} | {direction}")
-        except Exception:
-            logger.exception("❌ DB yozishda xatolik")
-            return Response({"message": "❌ DB yozishda xatolik"}, status=500)
+            return Response({"message": "❌ Laravelga yuborishda xatolik (mahalliy saqlandi)"}, status=status.HTTP_200_OK)
 
         return Response({
-            "message": "✅ Event qabul qilindi va bazaga yozildi",
+            "message": "✅ Event qabul qilindi va Laravelga yuborildi",
             "person_id": person_id,
             "name": name,
             "operation": operation,
