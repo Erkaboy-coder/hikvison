@@ -177,9 +177,9 @@
                     <h5 class="fw-bold text-dark">{{ card_number }}</h5>
                 </div>
 
-                {% with last_log=logs|first %}
+                {% if last_event %}
                     <div>
-                        {% if last_log.direction == "in" %}
+                        {% if last_event.direction == "in" %}
                             <span class="status-badge status-in">
                                 <i class="fa-solid fa-building"></i> Bino ichida
                             </span>
@@ -189,7 +189,7 @@
                             </span>
                         {% endif %}
                     </div>
-                {% endwith %}
+                {% endif %}
 
             </div>
         </div>
@@ -241,7 +241,7 @@
             <ul class="pagination justify-content-center flex-wrap">
                 {% if logs.has_previous %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ logs.previous_page_number }}{% if card_number %}&card_number={{ card_number }}{% endif %}">
+                    <a class="page-link" href="?page={{ logs.previous_page_number }}{% if card_number %}&card_number={{ card_number }}{% endif %}{% if filter_date %}&filter_date={{ filter_date }}{% endif %}{% if start_time %}&start_time={{ start_time }}{% endif %}{% if end_time %}&end_time={{ end_time }}{% endif %}">
                         <i class="fa-solid fa-arrow-left"></i> Oldingi
                     </a>
                 </li>
@@ -256,14 +256,14 @@
                         <li class="page-item active"><span class="page-link">{{ num }}</span></li>
                     {% else %}
                         <li class="page-item">
-                            <a class="page-link" href="?page={{ num }}{% if card_number %}&card_number={{ card_number }}{% endif %}">{{ num }}</a>
+                            <a class="page-link" href="?page={{ num }}{% if card_number %}&card_number={{ card_number }}{% endif %}{% if filter_date %}&filter_date={{ filter_date }}{% endif %}{% if start_time %}&start_time={{ start_time }}{% endif %}{% if end_time %}&end_time={{ end_time }}{% endif %}">{{ num }}</a>
                         </li>
                     {% endif %}
                 {% endfor %}
 
                 {% if logs.has_next %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ logs.next_page_number }}{% if card_number %}&card_number={{ card_number }}{% endif %}">
+                    <a class="page-link" href="?page={{ logs.next_page_number }}{% if card_number %}&card_number={{ card_number }}{% endif %}{% if filter_date %}&filter_date={{ filter_date }}{% endif %}{% if start_time %}&start_time={{ start_time }}{% endif %}{% if end_time %}&end_time={{ end_time }}{% endif %}">
                         Keyingi <i class="fa-solid fa-arrow-right"></i>
                     </a>
                 </li>

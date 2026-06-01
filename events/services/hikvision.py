@@ -1,48 +1,122 @@
 import json
 import re
+import os
 import requests
 import urllib3
 from requests.auth import HTTPDigestAuth
 from django.utils import timezone
 from events.models import EventLog
+from dateutil import parser
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# Hikvision konfiguratsiyasi
-URL = "http://10.234.0.8/ISAPI/Event/notification/alertStream"
-USER = "admin"
-PASS = "Z12345678r"
-
-def handle_event(evt: dict):
+def handle_event(evt: dict, direction: str = "in"):
     """
-    Faqat foydalanuvchi ismi yoki kartasi mavjud eventlarni ko‘rsatadi.
+    Faqat foydalanuvchi ismi yoki kartasi mavjud eventlarni ko‘rsatadi,
+    mahalliy bazaga saqlaydi va Laravelga yuboradi.
     """
-    etype = evt.get("eventType", "")
     ace = evt.get("AccessControllerEvent") or evt.get("accessControllerEvent") or {}
-    desc = evt.get("eventDescription", "")
-    name = ace.get("name", "-")
-    card = ace.get("cardNo") or ace.get("employeeNoString") or "-"
+    person_id = ace.get("employeeNoString") or ace.get("verifyNo") or ace.get("cardNo")
+    name = ace.get("netUser") or ace.get("name")
 
-    # 🔹 Faqat ism yoki karta raqami mavjud bo‘lgan eventlarni chiqaramiz
-    if not name or name == "-" or not card or card == "-":
-        return  # foydasiz eventlarni tashlaymiz
+    # Faqat ism va karta raqami mavjud bo‘lgan eventlarni saqlaymiz
+    if not name or name == "-" or not person_id or person_id == "-":
+        return
 
-    now = timezone.localtime(timezone.now())
-    print(f"🟢 {name} ({card}) IN | {desc} | ⏰ {now.strftime('%Y-%m-%d %H:%M:%S')}")
+    # Vaqtni parse qilish
+    date_time_str = evt.get("dateTime") or evt.get("time")
+    tz = timezone.get_current_timezone()
+    now = timezone.now()
+    try:
+        if date_time_str:
+            date_time = parser.isoparse(date_time_str)
+            if date_time.tzinfo is None:
+                date_time = timezone.make_aware(date_time, tz)
+        else:
+            date_time = now
+    except Exception:
+        date_time = now
+
+    # statusValue bo'yicha operatsiyani aniqlash
+    status_value = ace.get("statusValue")
+    try:
+        status_value_int = int(status_value)
+    except:
+        status_value_int = 1
+    operation = "Door Unlocked" if status_value_int else "Door Locked"
+
+    print(f"🟢 {name} ({person_id}) {direction.upper()} | {operation} | ⏰ {date_time.strftime('%Y-%m-%d %H:%M:%S')}")
+
+    # Laravelga yuborish
+    laravel_url = os.getenv("LARAVEL_URL", "https://data.jdu.uz")
+    laravel_token = os.getenv("LARAVEL_TOKEN")
+    endpoint = f"{laravel_url}/api/event-logs"
+
+    payload = {
+        "event_type": operation,
+        "date_time": date_time.isoformat(),
+        "card_number": person_id,
+        "name": name,
+        "direction": direction,
+        "raw_data": evt
+    }
+
+    headers = {
+        "Authorization": f"Bearer {laravel_token}",
+        "Content-Type": "application/json"
+    }
+
+    try:
+        response = requests.post(endpoint, json=payload, headers=headers, timeout=10)
+        if response.status_code in [200, 201]:
+            # Muvaffaqiyatli yuborildi
+            EventLog.objects.create(
+                event_type=operation,
+                date_time=date_time,
+                card_number=person_id,
+                name=name,
+                direction=direction,
+                raw_data=evt,
+                is_synced=True
+            )
+        else:
+            # Laravel xatolik qaytardi
+            EventLog.objects.create(
+                event_type=operation,
+                date_time=date_time,
+                card_number=person_id,
+                name=name,
+                direction=direction,
+                raw_data=evt,
+                is_synced=False
+            )
+    except Exception as e:
+        # Tarmoq xatosi
+        EventLog.objects.create(
+            event_type=operation,
+            date_time=date_time,
+            card_number=person_id,
+            name=name,
+            direction=direction,
+            raw_data=evt,
+            is_synced=False
+        )
 
 
-
-def stream_events():
+def stream_events(camera_url: str, direction: str):
     """
     Hikvision alertStream dan jonli eventlarni olish.
     """
-    print("📡 Hikvision event stream ishga tushdi. To‘xtatish uchun Ctrl+C bosing.")
-    print(f"🔌 Kamera stream ulanmoqda: {URL}")
+    print(f"📡 Hikvision event stream ({direction}) ishga tushdi.")
+    print(f"🔌 Kamera stream ulanmoqda: {camera_url}")
+
+    user = os.getenv("HIKVISION_USER", "admin")
+    password = os.getenv("HIKVISION_PASS", "Z12345678r")
 
     try:
-        with requests.get(URL, auth=HTTPDigestAuth(USER, PASS), stream=True, verify=False, timeout=10) as r:
+        with requests.get(camera_url, auth=HTTPDigestAuth(user, password), stream=True, verify=False, timeout=15) as r:
             r.raise_for_status()
-            print("✅ IN kamera ulandi. Jonli eventlar kelyapti...\n")
+            print(f"✅ {direction.upper()} kamera ulandi. Jonli eventlar kelyapti...\n")
 
             buffer = b""
             boundary = None
@@ -69,7 +143,7 @@ def stream_events():
                     part_and_rest = buffer[idx + len(boundary):]
 
                     if part_and_rest.startswith(b"--"):
-                        print("🔚 Stream tugadi")
+                        print(f"🔚 {direction.upper()} Stream tugadi")
                         return
 
                     buffer = part_and_rest
@@ -107,11 +181,11 @@ def stream_events():
 
                     try:
                         evt = json.loads(body.decode("utf-8", errors="ignore"))
-                        handle_event(evt)
+                        handle_event(evt, direction)
                     except Exception as e:
                         print(f"❌ Parse error: {e}")
 
     except KeyboardInterrupt:
-        print("🛑 Stream foydalanuvchi tomonidan to‘xtatildi.")
+        print(f"🛑 {direction.upper()} Stream foydalanuvchi tomonidan to‘xtatildi.")
     except Exception as e:
-        print(f"🚫 Kamera bilan aloqa xatosi: {e}")
+        print(f"🚫 {direction.upper()} Kamera bilan aloqa xatosi: {e}")

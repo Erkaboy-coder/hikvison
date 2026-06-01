@@ -1,3 +1,5 @@
+import os
+import requests
 from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -28,11 +30,13 @@ class WeeklyActivityView(APIView):
         start_time = request.GET.get("start_time")
         end_time = request.GET.get("end_time")
 
-        now = timezone.now()
-        one_month_ago = now - timedelta(days=30)  # faqat oxirgi 1 oy
-
-        # Oxirgi 1 oy loglarini olish
-        logs = EventLog.objects.filter(date_time__gte=one_month_ago)
+        # Oxirgi 1 oy loglarini olish (agar maxsus sana kiritilmagan bo'lsa)
+        if filter_date:
+            logs = EventLog.objects.all()
+        else:
+            now = timezone.now()
+            one_month_ago = now - timedelta(days=30)  # faqat oxirgi 1 oy
+            logs = EventLog.objects.filter(date_time__gte=one_month_ago)
 
         # Card filter
         if card_number:
@@ -50,16 +54,14 @@ class WeeklyActivityView(APIView):
         if start_time:
             try:
                 start_time_obj = datetime.strptime(start_time, "%H:%M").time()
-                logs = logs.filter(date_time__hour__gte=start_time_obj.hour,
-                                   date_time__minute__gte=start_time_obj.minute)
+                logs = logs.filter(date_time__time__gte=start_time_obj)
             except ValueError:
                 pass
 
         if end_time:
             try:
                 end_time_obj = datetime.strptime(end_time, "%H:%M").time()
-                logs = logs.filter(date_time__hour__lte=end_time_obj.hour,
-                                   date_time__minute__lte=end_time_obj.minute)
+                logs = logs.filter(date_time__time__lte=end_time_obj)
             except ValueError:
                 pass
 
@@ -115,6 +117,7 @@ class WeeklyActivityView(APIView):
             "status": status_str,
             "has_data": logs.exists(),
             "page_numbers": page_numbers,
+            "last_event": last_log,
         }
 
         return render(request, "weekly_activity.html", context)
@@ -140,7 +143,13 @@ class DoorEventAPIView(APIView):
     """
 
     def post(self, request):
-        client_ip = request.META.get('REMOTE_ADDR')
+        # HTTP_X_FORWARDED_FOR orqali haqiqiy IP ni aniqlash
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            client_ip = x_forwarded_for.split(',')[0].strip()
+        else:
+            client_ip = request.META.get('REMOTE_ADDR')
+
         logger.info(f"📥 NEW REQUEST: IP={client_ip}, DATA={request.data}")
 
         if client_ip not in LIVE_IPS:
@@ -153,19 +162,23 @@ class DoorEventAPIView(APIView):
             logger.error("❌ event_log maydoni topilmadi")
             return Response({"message": "❌ event_log maydoni topilmadi"}, status=status.HTTP_400_BAD_REQUEST)
 
-        try:
-            data = json.loads(event_log_str)
-            logger.info(f"📦 JSON qabul qilindi: {data}")
-        except json.JSONDecodeError:
-            logger.exception("❌ JSON parse error")
-            return Response({"message": "❌ JSON parse xatolik"}, status=status.HTTP_400_BAD_REQUEST)
+        if isinstance(event_log_str, dict):
+            data = event_log_str
+            logger.info(f"📦 Dict qabul qilindi: {data}")
+        else:
+            try:
+                data = json.loads(event_log_str)
+                logger.info(f"📦 JSON qabul qilindi: {data}")
+            except json.JSONDecodeError:
+                logger.exception("❌ JSON parse error")
+                return Response({"message": "❌ JSON parse xatolik"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Event maydonlarini aniqlash
-        ace = data.get("AccessControllerEvent", {})
+        # Event maydonlarini aniqlash (katta-kichik harflarga sezgirlikni yo'qotish)
+        ace = data.get("AccessControllerEvent") or data.get("accessControllerEvent") or {}
         person_id = ace.get("employeeNoString") or ace.get("verifyNo") or ace.get("cardNo")
         name = ace.get("netUser") or ace.get("name")
         status_value = ace.get("statusValue")
-        date_time_str = data.get("dateTime")
+        date_time_str = data.get("dateTime") or data.get("time")
 
         logger.info(f"🔍 Parsed fields: person_id={person_id}, name={name}, status_value={status_value}, date_time={date_time_str}")
 
@@ -189,10 +202,11 @@ class DoorEventAPIView(APIView):
             logger.exception("❌ date_time parse xatolik")
             date_time = now
 
-        # 2 daqiqa cheklovi
+        # Eski yoki kelajakdagi event cheklovi (sozlamalardan o'qish)
+        max_age = int(os.getenv("EVENT_MAX_AGE_SECONDS", 120))
         diff = abs((now - date_time).total_seconds())
-        if diff > 120:
-            logger.warning(f"⏳ Eski yoki kelajakdagi event tashlandi. Farq={diff} sec")
+        if diff > max_age:
+            logger.warning(f"⏳ Eski yoki kelajakdagi event tashlandi. Farq={diff} sec, max_age={max_age}")
             return Response({"message": "⏳ Eski yoki kelajakdagi event e'tiborsiz qoldirildi"}, status=status.HTTP_200_OK)
 
         # status_value int ga o‘tkazish
@@ -216,9 +230,6 @@ class DoorEventAPIView(APIView):
         logger.info(f"📌 Operation={operation}, Direction={direction}")
 
         # Laravel ga yuborish
-        import os
-        import requests
-
         laravel_url = os.getenv("LARAVEL_URL", "https://data.jdu.uz")
         laravel_token = os.getenv("LARAVEL_TOKEN")
         endpoint = f"{laravel_url}/api/event-logs"
@@ -240,7 +251,18 @@ class DoorEventAPIView(APIView):
         try:
             response = requests.post(endpoint, json=payload, headers=headers, timeout=10)
             logger.info(f"📤 Sent to Laravel: HTTP {response.status_code} | {person_id} | {name}")
-            if response.status_code not in [200, 201]:
+            if response.status_code in [200, 201]:
+                # Muvaffaqiyatli yuborilganda ham local saqlaymiz va is_synced=True qilamiz
+                EventLog.objects.create(
+                    event_type=operation,
+                    date_time=date_time,
+                    card_number=person_id,
+                    name=name,
+                    direction=direction,
+                    raw_data=data if isinstance(data, dict) else {"raw": str(data)},
+                    is_synced=True
+                )
+            else:
                 logger.error(f"❌ Laravel returned error: HTTP {response.status_code} - {response.text}")
                 EventLog.objects.create(
                     event_type=operation,

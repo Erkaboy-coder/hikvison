@@ -1,7 +1,8 @@
 import requests
 from requests.auth import HTTPDigestAuth
 
-xml = """<?xml version="1.0" encoding="UTF-8"?>
+if __name__ == '__main__':
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
 <CMSearchDescription version="1.0" xmlns="http://www.hikvision.com/ver10/XMLSchema">
   <searchID>1</searchID>
   <trackIDList><trackID>101</trackID></trackIDList>
@@ -18,6 +19,6 @@ xml = """<?xml version="1.0" encoding="UTF-8"?>
   </metadataList>
 </CMSearchDescription>"""
 
-r = requests.post('http://10.234.0.8/ISAPI/ContentMgmt/logSearch', auth=HTTPDigestAuth('admin', 'Z12345678r'), data=xml, headers={'Content-Type': 'application/xml'}, timeout=10)
-print(r.status_code)
-print(r.text[:500])
+    r = requests.post('http://10.234.0.8/ISAPI/ContentMgmt/logSearch', auth=HTTPDigestAuth('admin', 'Z12345678r'), data=xml, headers={'Content-Type': 'application/xml'}, timeout=10)
+    print(r.status_code)
+    print(r.text[:500])
