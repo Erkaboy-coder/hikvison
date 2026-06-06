@@ -65,8 +65,8 @@ class Command(BaseCommand):
                 
                 try:
                     dt = datetime.fromisoformat(time_str)
-                    if dt.tzinfo is None:
-                        dt = tz.localize(dt)
+                    # Kamera vaqti to'g'ri (Toshkent), lekin zonani noto'g'ri berayotgan bo'lsa uni almashtiramiz
+                    dt = dt.replace(tzinfo=tz)
                 except Exception:
                     continue
                     

@@ -30,12 +30,20 @@ def handle_event(evt: dict, direction: str = "in"):
     try:
         if date_time_str:
             date_time = parser.isoparse(date_time_str)
-            if date_time.tzinfo is None:
-                date_time = timezone.make_aware(date_time, tz)
+            # Kamera o'z vaqtini +08:00 (Xitoy) kabi yuborishi mumkin, lekin aslida soati Toshkentga to'g'rilangan
+            # Shuning uchun kelgan vaqtni o'zgarishsiz qoldirib, zonasini Toshkent qilamiz
+            date_time = date_time.replace(tzinfo=tz)
         else:
             date_time = now
     except Exception:
         date_time = now
+        
+    # Eski yoki kelajakdagi event cheklovi
+    max_age = int(os.getenv("EVENT_MAX_AGE_SECONDS", 120))
+    diff = abs((now - date_time).total_seconds())
+    if diff > max_age:
+        print(f"⏳ Eski yoki kelajakdagi event tashlandi. Farq={diff} sec, max_age={max_age}")
+        return
 
     # statusValue bo'yicha operatsiyani aniqlash
     status_value = ace.get("statusValue")

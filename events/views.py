@@ -192,9 +192,9 @@ class DoorEventAPIView(APIView):
         try:
             if date_time_str:
                 date_time = parser.isoparse(date_time_str)
-                if date_time.tzinfo is None:
-                    date_time = TZ.localize(date_time)
-                date_time = date_time.astimezone(TZ)
+                # Kamera o'z vaqtini +08:00 (Xitoy) kabi yuborishi mumkin, lekin aslida soati Toshkentga to'g'rilangan
+                # Shuning uchun kelgan vaqtni o'zgarishsiz qoldirib, zonasini Toshkent qilamiz
+                date_time = date_time.replace(tzinfo=TZ)
             else:
                 date_time = now
             logger.info(f"🕒 Event time parsed: {date_time}")
