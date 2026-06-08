@@ -26,7 +26,7 @@ def handle_event(evt: dict, direction: str = "in"):
     # Vaqtni parse qilish
     date_time_str = evt.get("dateTime") or evt.get("time")
     tz = timezone.get_current_timezone()
-    now = timezone.now()
+    now = timezone.localtime(timezone.now()) # Hozirgi vaqtni local (Toshkent) vaqtiga o'tkazamiz
     try:
         if date_time_str:
             date_time = parser.isoparse(date_time_str)
@@ -38,8 +38,8 @@ def handle_event(evt: dict, direction: str = "in"):
     except Exception:
         date_time = now
         
-    # Eski yoki kelajakdagi event cheklovi
-    max_age = int(os.getenv("EVENT_MAX_AGE_SECONDS", 120))
+    # Eski yoki kelajakdagi event cheklovi (120 soniya juda qattiq, 1 soat qilamiz)
+    max_age = int(os.getenv("EVENT_MAX_AGE_SECONDS", 3600))
     diff = abs((now - date_time).total_seconds())
     if diff > max_age:
         print(f"⏳ Eski yoki kelajakdagi event tashlandi. Farq={diff} sec, max_age={max_age}")
