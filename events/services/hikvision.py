@@ -38,12 +38,12 @@ def handle_event(evt: dict, direction: str = "in"):
     except Exception:
         date_time = now
         
-    # Eski yoki kelajakdagi event cheklovi (120 soniya o'rniga 1 soat qildik)
-    # Ubuntu serveringizdagi .env faylida 120 qolib ketgan bo'lishi mumkin, shuning uchun ataylab 3600 yozib qo'ydik.
-    max_age = 3600
-    diff = abs((now - date_time).total_seconds())
-    if diff > max_age:
-        print(f"⏳ Eski yoki kelajakdagi event tashlandi. Farq={diff} sec, max_age={max_age}")
+    # Faqat joriy kunga tegishli eventlarni qabul qilish (kechagi loglarni inkor qilish)
+    if date_time.date() != now.date():
+        return
+
+    # Duplikatlarni oldini olish (svet o'chib yonganda eski ma'lumotlar qayta kelsa)
+    if EventLog.objects.filter(card_number=person_id, date_time=date_time, direction=direction).exists():
         return
 
     # statusValue bo'yicha operatsiyani aniqlash
