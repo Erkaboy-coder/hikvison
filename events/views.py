@@ -175,9 +175,16 @@ class DoorEventAPIView(APIView):
 
         # Event maydonlarini aniqlash (katta-kichik harflarga sezgirlikni yo'qotish)
         ace = data.get("AccessControllerEvent") or data.get("accessControllerEvent") or {}
-        person_id = ace.get("employeeNoString") or ace.get("verifyNo") or ace.get("cardNo")
-        name = ace.get("netUser") or ace.get("name")
-        status_value = ace.get("statusValue")
+        person_id = (
+            ace.get("employeeNoString")
+            or ace.get("verifyNo")
+            or ace.get("cardNo")
+            or data.get("employeeNoString")
+            or data.get("verifyNo")
+            or data.get("cardNo")
+        )
+        name = ace.get("netUser") or ace.get("name") or data.get("netUser") or data.get("name")
+        status_value = ace.get("statusValue") or data.get("statusValue") or data.get("minor")
         date_time_str = data.get("dateTime") or data.get("time")
 
         logger.info(f"🔍 Parsed fields: person_id={person_id}, name={name}, status_value={status_value}, date_time={date_time_str}")
@@ -203,7 +210,7 @@ class DoorEventAPIView(APIView):
             date_time = now
 
         # Eski yoki kelajakdagi event cheklovi (sozlamalardan o'qish)
-        max_age = int(os.getenv("EVENT_MAX_AGE_SECONDS", 120))
+        max_age = int(os.getenv("EVENT_MAX_AGE_SECONDS", 86400))
         diff = abs((now - date_time).total_seconds())
         if diff > max_age:
             logger.warning(f"⏳ Eski yoki kelajakdagi event tashlandi. Farq={diff} sec, max_age={max_age}")
