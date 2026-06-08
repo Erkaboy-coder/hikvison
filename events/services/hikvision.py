@@ -16,8 +16,8 @@ def handle_event(evt: dict, direction: str = "in"):
     mahalliy bazaga saqlaydi va Laravelga yuboradi.
     """
     ace = evt.get("AccessControllerEvent") or evt.get("accessControllerEvent") or {}
-    person_id = ace.get("employeeNoString") or ace.get("verifyNo") or ace.get("cardNo")
-    name = ace.get("netUser") or ace.get("name")
+    person_id = ace.get("employeeNoString") or ace.get("verifyNo") or ace.get("cardNo") or evt.get("employeeNoString") or evt.get("cardNo")
+    name = ace.get("netUser") or ace.get("name") or evt.get("name")
 
     # Faqat ism va karta raqami mavjud bo‘lgan eventlarni saqlaymiz
     if not name or name == "-" or not person_id or person_id == "-":
@@ -38,8 +38,9 @@ def handle_event(evt: dict, direction: str = "in"):
     except Exception:
         date_time = now
         
-    # Eski yoki kelajakdagi event cheklovi (120 soniya juda qattiq, 1 soat qilamiz)
-    max_age = int(os.getenv("EVENT_MAX_AGE_SECONDS", 3600))
+    # Eski yoki kelajakdagi event cheklovi (120 soniya o'rniga 1 soat qildik)
+    # Ubuntu serveringizdagi .env faylida 120 qolib ketgan bo'lishi mumkin, shuning uchun ataylab 3600 yozib qo'ydik.
+    max_age = 3600
     diff = abs((now - date_time).total_seconds())
     if diff > max_age:
         print(f"⏳ Eski yoki kelajakdagi event tashlandi. Farq={diff} sec, max_age={max_age}")
