@@ -2,7 +2,7 @@ import requests
 from requests.auth import HTTPDigestAuth
 import json
 from datetime import datetime, timedelta
-import pytz
+from zoneinfo import ZoneInfo
 from django.core.management.base import BaseCommand
 from events.models import EventLog
 
@@ -52,7 +52,7 @@ class Command(BaseCommand):
                 
             self.stdout.write(f"{len(events)} ta event topildi. Bazaga yozilmoqda...")
             
-            tz = pytz.timezone("Asia/Tashkent")
+            tz = ZoneInfo("Asia/Tashkent")
             added = 0
             
             for evt in events:
