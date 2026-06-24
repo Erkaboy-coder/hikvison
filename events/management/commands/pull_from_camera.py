@@ -14,14 +14,8 @@ class Command(BaseCommand):
         parser.add_argument('--direction', type=str, default='in', help='in yoki out')
 
     def handle(self, *args, **options):
-        ip = options['ip']
-        direction = options['direction']
-        
-        self.stdout.write(f"Kameradan ({ip}) ma'lumotlar olinmoqda...")
-        
-        now = datetime.now()
-        start_time = now.replace(hour=0, minute=0, second=0).strftime("%Y-%m-%dT%H:%M:%S+05:00")
-        end_time = now.replace(hour=23, minute=59, second=59).strftime("%Y-%m-%dT%H:%M:%S+05:00")
+        self.stdout.write("Kameradan loglarni tortish o'chirilgan (Disabled).")
+        return
         
         payload = {
             "AcsEventCond": {

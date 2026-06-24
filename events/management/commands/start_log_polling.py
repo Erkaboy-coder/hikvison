@@ -129,7 +129,8 @@ class Command(BaseCommand):
     help = "Hikvision log polling — bugungi Access Control eventlarni kuzatadi (barcha kameralar uchun)."
 
     def handle(self, *args, **options):
-        print("📡 Hikvision log polling ishga tushdi. To‘xtatish uchun Ctrl+C bosing.\n")
+        self.stdout.write("Hikvision log polling o'chirilgan (Disabled).")
+        return
         
         cameras = getattr(settings, "CAMERAS", [])
         if not cameras:
