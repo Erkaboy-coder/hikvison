@@ -56,16 +56,60 @@ def handle_event(evt: dict, direction: str = "in"):
 
     print(f"🟢 {name} ({person_id}) {direction.upper()} | {operation} | ⏰ {date_time.strftime('%Y-%m-%d %H:%M:%S')}")
 
-    # Laravelga yuborish o'chirildi (Disabled)
-    EventLog.objects.create(
-        event_type=operation,
-        date_time=date_time,
-        card_number=person_id,
-        name=name,
-        direction=direction,
-        raw_data=evt,
-        is_synced=False
-    )
+    # Laravelga yuborish
+    laravel_url = os.getenv("LARAVEL_URL", "https://data.jdu.uz")
+    laravel_token = os.getenv("LARAVEL_TOKEN")
+    endpoint = f"{laravel_url}/api/event-logs"
+
+    payload = {
+        "event_type": operation,
+        "date_time": date_time.isoformat(),
+        "card_number": person_id,
+        "name": name,
+        "direction": direction,
+        "raw_data": evt
+    }
+
+    headers = {
+        "Authorization": f"Bearer {laravel_token}",
+        "Content-Type": "application/json"
+    }
+
+    try:
+        response = requests.post(endpoint, json=payload, headers=headers, timeout=10)
+        if response.status_code in [200, 201]:
+            # Muvaffaqiyatli yuborildi
+            EventLog.objects.create(
+                event_type=operation,
+                date_time=date_time,
+                card_number=person_id,
+                name=name,
+                direction=direction,
+                raw_data=evt,
+                is_synced=True
+            )
+        else:
+            # Laravel xatolik qaytardi
+            EventLog.objects.create(
+                event_type=operation,
+                date_time=date_time,
+                card_number=person_id,
+                name=name,
+                direction=direction,
+                raw_data=evt,
+                is_synced=False
+            )
+    except Exception as e:
+        # Tarmoq xatosi
+        EventLog.objects.create(
+            event_type=operation,
+            date_time=date_time,
+            card_number=person_id,
+            name=name,
+            direction=direction,
+            raw_data=evt,
+            is_synced=False
+        )
 
 
 def stream_events(camera_url: str, direction: str):

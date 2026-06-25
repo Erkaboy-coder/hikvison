@@ -11,8 +11,13 @@ class Command(BaseCommand):
     help = 'Unsynced loglarni Laravel loyihasiga yuborish'
 
     def handle(self, *args, **kwargs):
-        self.stdout.write("Laravelga loglarni sinxronlash o'chirilgan (Disabled).")
-        return
+        laravel_url = os.getenv("LARAVEL_URL", "https://data.jdu.uz")
+        laravel_token = os.getenv("LARAVEL_TOKEN")
+        endpoint = f"{laravel_url}/api/event-logs"
+
+        if not laravel_token:
+            self.stderr.write(self.style.ERROR("❌ LARAVEL_TOKEN .env faylida topilmadi!"))
+            return
 
         unsynced_events = EventLog.objects.filter(is_synced=False).order_by('date_time')
         
