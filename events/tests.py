@@ -6,6 +6,7 @@ from django.utils import timezone
 from django.urls import reverse
 from rest_framework import status
 from .models import EventLog
+from events.services.hikvision import parse_and_correct_datetime, TZ
 
 class WeeklyActivityViewTests(TestCase):
     def setUp(self):
@@ -146,3 +147,43 @@ class DoorEventAPIViewTests(TestCase):
         
         self.assertEqual(response.status_code, 200)
         self.assertTrue(EventLog.objects.filter(card_number="CARD777", name="CamelCase Foydalanuvchi").exists())
+
+
+class TimezoneCorrectionTests(TestCase):
+    def test_timezone_correction_utc_offset(self):
+        # 1. Camera timezone reset to UTC (+00:00) with NTP synced time.
+        # Server current local Tashkent time is 10:41:35 (+05:00)
+        now = datetime(2026, 6, 25, 10, 41, 35, tzinfo=TZ)
+        
+        # Camera sends UTC time equivalent to 10:41:31 Tashkent time
+        camera_time_str = "2026-06-25T05:41:31Z"
+        
+        corrected = parse_and_correct_datetime(camera_time_str, now)
+        self.assertEqual(corrected, datetime(2026, 6, 25, 10, 41, 31, tzinfo=TZ))
+
+    def test_timezone_correction_misconfigured_china_offset(self):
+        # 2. Camera timezone misconfigured to China (+08:00) with local Tashkent time digits.
+        # Server current local Tashkent time is 10:41:35 (+05:00)
+        now = datetime(2026, 6, 25, 10, 41, 35, tzinfo=TZ)
+        
+        # Camera sends local time digits (10:41:31) but with +08:00 offset
+        camera_time_str = "2026-06-25T10:41:31+08:00"
+        
+        corrected = parse_and_correct_datetime(camera_time_str, now)
+        self.assertEqual(corrected, datetime(2026, 6, 25, 10, 41, 31, tzinfo=TZ))
+
+    def test_timezone_correction_correct_offset(self):
+        # 3. Camera timezone correct (+05:00) with correct clock.
+        now = datetime(2026, 6, 25, 10, 41, 35, tzinfo=TZ)
+        camera_time_str = "2026-06-25T10:41:31+05:00"
+        
+        corrected = parse_and_correct_datetime(camera_time_str, now)
+        self.assertEqual(corrected, datetime(2026, 6, 25, 10, 41, 31, tzinfo=TZ))
+
+    def test_timezone_correction_naive_datetime(self):
+        # Naive datetime defaults to Asia/Tashkent
+        now = datetime(2026, 6, 25, 10, 41, 35, tzinfo=TZ)
+        camera_time_str = "2026-06-25T10:41:31"
+        
+        corrected = parse_and_correct_datetime(camera_time_str, now)
+        self.assertEqual(corrected, datetime(2026, 6, 25, 10, 41, 31, tzinfo=TZ))

@@ -7,8 +7,53 @@ from requests.auth import HTTPDigestAuth
 from django.utils import timezone
 from events.models import EventLog
 from dateutil import parser
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+TZ = ZoneInfo("Asia/Tashkent")
+
+def parse_and_correct_datetime(date_time_str: str, now: datetime) -> datetime:
+    """
+    Parses and corrects the camera datetime to Asia/Tashkent timezone.
+    Handles two cases of camera misconfiguration:
+    1. Camera clock is set to UTC/other timezone, but the offset is sent correctly.
+       In this case, converting the timezone-aware datetime to Asia/Tashkent gives the correct time.
+    2. Camera clock digits are set to Tashkent time, but the offset is incorrect (e.g. +08:00).
+       In this case, replacing the timezone with Asia/Tashkent directly gives the correct time.
+    We compare both results with the current server time `now`. Whichever is closer is chosen.
+    """
+    if not date_time_str:
+        return now
+
+    try:
+        dt = parser.isoparse(date_time_str)
+    except Exception:
+        try:
+            dt = datetime.fromisoformat(date_time_str)
+        except Exception:
+            return now
+
+    # If the parsed datetime is naive (no timezone offset), force Asia/Tashkent
+    if dt.tzinfo is None or dt.utcoffset() is None:
+        return dt.replace(tzinfo=TZ)
+
+    # Strategy A: Convert timezone normally (assume camera offset is correct)
+    dt_aware = dt.astimezone(TZ)
+
+    # Strategy B: Force timezone (assume clock digits are Tashkent time but offset is wrong)
+    dt_forced = dt.replace(tzinfo=TZ)
+
+    # Calculate absolute differences from the current server time (now)
+    diff_aware = abs((now - dt_aware).total_seconds())
+    diff_forced = abs((now - dt_forced).total_seconds())
+
+    # Whichever is closer to current server time is chosen
+    if diff_aware < diff_forced:
+        return dt_aware
+    else:
+        return dt_forced
 
 def handle_event(evt: dict, direction: str = "in"):
     """
@@ -25,18 +70,8 @@ def handle_event(evt: dict, direction: str = "in"):
 
     # Vaqtni parse qilish
     date_time_str = evt.get("dateTime") or evt.get("time")
-    tz = timezone.get_current_timezone()
     now = timezone.localtime(timezone.now()) # Hozirgi vaqtni local (Toshkent) vaqtiga o'tkazamiz
-    try:
-        if date_time_str:
-            date_time = parser.isoparse(date_time_str)
-            # Kamera o'z vaqtini +08:00 (Xitoy) kabi yuborishi mumkin, lekin aslida soati Toshkentga to'g'rilangan
-            # Shuning uchun kelgan vaqtni o'zgarishsiz qoldirib, zonasini Toshkent qilamiz
-            date_time = date_time.replace(tzinfo=tz)
-        else:
-            date_time = now
-    except Exception:
-        date_time = now
+    date_time = parse_and_correct_datetime(date_time_str, now)
         
     # Faqat joriy kunga tegishli eventlarni qabul qilish (kechagi loglarni inkor qilish)
     if date_time.date() != now.date():

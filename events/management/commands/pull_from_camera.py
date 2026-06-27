@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from django.core.management.base import BaseCommand
 from events.models import EventLog
+from events.services.hikvision import parse_and_correct_datetime
 
 class Command(BaseCommand):
     help = 'Kameradan tushib qolgan loglarni to\'g\'ridan-to\'g\'ri tortib olish'
@@ -14,8 +15,15 @@ class Command(BaseCommand):
         parser.add_argument('--direction', type=str, default='in', help='in yoki out')
 
     def handle(self, *args, **options):
-        self.stdout.write("Kameradan loglarni tortish o'chirilgan (Disabled).")
-        return
+        ip = options['ip']
+        direction = options['direction']
+        
+        tz = ZoneInfo("Asia/Tashkent")
+        now = datetime.now(tz)
+        
+        # Bugungi kun boshlanishi va oxiri
+        start_time = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        end_time = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
         
         payload = {
             "AcsEventCond": {
@@ -46,7 +54,6 @@ class Command(BaseCommand):
                 
             self.stdout.write(f"{len(events)} ta event topildi. Bazaga yozilmoqda...")
             
-            tz = ZoneInfo("Asia/Tashkent")
             added = 0
             
             for evt in events:
@@ -57,11 +64,10 @@ class Command(BaseCommand):
                 name = evt.get("name", "Noma'lum")
                 time_str = evt.get("time")
                 
-                try:
-                    dt = datetime.fromisoformat(time_str)
-                    # Kamera vaqti to'g'ri (Toshkent), lekin zonani noto'g'ri berayotgan bo'lsa uni almashtiramiz
-                    dt = dt.replace(tzinfo=tz)
-                except Exception:
+                dt = parse_and_correct_datetime(time_str, now)
+                
+                # Faqat joriy kunga tegishli eventlarni qabul qilish (kechagi loglarni inkor qilish)
+                if dt.date() != now.date():
                     continue
                     
                 # Bazada bormi yo'qmi tekshiramiz

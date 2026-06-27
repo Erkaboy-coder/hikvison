@@ -13,6 +13,7 @@ from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from .models import EventLog
 from .serializers import EventLogSerializer
 import logging
+from events.services.hikvision import parse_and_correct_datetime
 logger = logging.getLogger("hikvision")
 
 LIVE_IPS = [
@@ -197,18 +198,8 @@ class DoorEventAPIView(APIView):
 
         # vaqtni parse qilish
         now = datetime.now(TZ)
-        try:
-            if date_time_str:
-                date_time = parser.isoparse(date_time_str)
-                # Kamera o'z vaqtini +08:00 (Xitoy) kabi yuborishi mumkin, lekin aslida soati Toshkentga to'g'rilangan
-                # Shuning uchun kelgan vaqtni o'zgarishsiz qoldirib, zonasini Toshkent qilamiz
-                date_time = date_time.replace(tzinfo=TZ)
-            else:
-                date_time = now
-            logger.info(f"🕒 Event time parsed: {date_time}")
-        except Exception:
-            logger.exception("❌ date_time parse xatolik")
-            date_time = now
+        date_time = parse_and_correct_datetime(date_time_str, now)
+        logger.info(f"🕒 Event time parsed and corrected: {date_time}")
 
         # Eski yoki kelajakdagi event cheklovi (sozlamalardan o'qish)
         max_age = int(os.getenv("EVENT_MAX_AGE_SECONDS", 86400))
