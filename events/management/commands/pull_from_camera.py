@@ -15,8 +15,8 @@ class Command(BaseCommand):
         parser.add_argument('--direction', type=str, default='in', help='in yoki out')
 
     def handle(self, *args, **options):
-        ip = options['ip']
-        direction = options['direction']
+        self.stdout.write("Kameradan loglarni tortish o'chirilgan (Disabled).")
+        return
         
         tz = ZoneInfo("Asia/Tashkent")
         now = datetime.now(tz)
