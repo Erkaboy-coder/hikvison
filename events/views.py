@@ -7,7 +7,6 @@ from django.shortcuts import render
 from django.utils import timezone
 from datetime import datetime, timedelta
 import json
-from zoneinfo import ZoneInfo
 from dateutil import parser
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from .models import EventLog
@@ -22,7 +21,7 @@ LIVE_IPS = [
     "127.0.0.1"     # Local test uchun
 ]
 
-TZ = ZoneInfo("Asia/Tashkent")
+TZ = timezone.get_current_timezone()
 
 
 class WeeklyActivityView(APIView):

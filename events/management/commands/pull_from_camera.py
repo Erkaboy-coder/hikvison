@@ -1,8 +1,8 @@
 import requests
 from requests.auth import HTTPDigestAuth
 import json
+from django.utils import timezone
 from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
 from django.core.management.base import BaseCommand
 from events.models import EventLog
 from events.services.hikvision import parse_and_correct_datetime
@@ -18,7 +18,7 @@ class Command(BaseCommand):
         self.stdout.write("Kameradan loglarni tortish o'chirilgan (Disabled).")
         return
         
-        tz = ZoneInfo("Asia/Tashkent")
+        tz = timezone.get_current_timezone()
         now = datetime.now(tz)
         
         # Bugungi kun boshlanishi va oxiri

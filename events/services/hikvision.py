@@ -8,11 +8,9 @@ from django.utils import timezone
 from events.models import EventLog
 from dateutil import parser
 from datetime import datetime
-from zoneinfo import ZoneInfo
-
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-TZ = ZoneInfo("Asia/Tashkent")
+TZ = timezone.get_current_timezone()
 
 def parse_and_correct_datetime(date_time_str: str, now: datetime) -> datetime:
     """
