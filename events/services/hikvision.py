@@ -45,6 +45,11 @@ def parse_and_correct_datetime(date_time_str: str, now: datetime) -> datetime:
     # Strategy B: Force timezone (assume clock digits are Tashkent time but offset is wrong)
     dt_forced = dt.replace(tzinfo=TZ)
 
+    # If the timezone is already correct, dt_aware and dt_forced are identical.
+    # Return it directly.
+    if dt_aware == dt_forced:
+        return dt_aware
+
     # Calculate absolute differences from the current server time (now)
     diff_aware = abs((now - dt_aware).total_seconds())
     diff_forced = abs((now - dt_forced).total_seconds())
@@ -71,7 +76,11 @@ def handle_event(evt: dict, direction: str = "in"):
     # Vaqtni parse qilish
     date_time_str = evt.get("dateTime") or evt.get("time")
     now = timezone.localtime(timezone.now()) # Hozirgi vaqtni local (Toshkent) vaqtiga o'tkazamiz
-    date_time = parse_and_correct_datetime(date_time_str, now)
+    try:
+        date_time = parse_and_correct_datetime(date_time_str, now)
+    except Exception as e:
+        print(f"❌ Timezone correction failed: {e}")
+        date_time = now
         
     # Faqat joriy kunga tegishli eventlarni qabul qilish (kechagi loglarni inkor qilish)
     if date_time.date() != now.date():

@@ -64,7 +64,11 @@ class Command(BaseCommand):
                 name = evt.get("name", "Noma'lum")
                 time_str = evt.get("time")
                 
-                dt = parse_and_correct_datetime(time_str, now)
+                try:
+                    dt = parse_and_correct_datetime(time_str, now)
+                except Exception as e:
+                    self.stderr.write(f"❌ Timezone correction failed: {e}")
+                    dt = now
                 
                 # Faqat joriy kunga tegishli eventlarni qabul qilish (kechagi loglarni inkor qilish)
                 if dt.date() != now.date():

@@ -198,8 +198,12 @@ class DoorEventAPIView(APIView):
 
         # vaqtni parse qilish
         now = datetime.now(TZ)
-        date_time = parse_and_correct_datetime(date_time_str, now)
-        logger.info(f"🕒 Event time parsed and corrected: {date_time}")
+        try:
+            date_time = parse_and_correct_datetime(date_time_str, now)
+            logger.info(f"🕒 Event time parsed and corrected: {date_time}")
+        except Exception as e:
+            logger.exception(f"❌ Timezone correction failed: {e}")
+            date_time = now
 
         # Eski yoki kelajakdagi event cheklovi (sozlamalardan o'qish)
         max_age = int(os.getenv("EVENT_MAX_AGE_SECONDS", 86400))
